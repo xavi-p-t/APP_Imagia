@@ -21,6 +21,11 @@ import android.Manifest
 import android.content.ContentValues
 import android.provider.MediaStore
 import com.xavi.imageia.databinding.FragmentHomeBinding
+import java.io.BufferedReader
+import java.io.DataOutputStream
+import java.io.InputStreamReader
+import java.net.HttpURLConnection
+import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.concurrent.ExecutorService
@@ -105,12 +110,30 @@ class HomeFragment : Fragment() {
                 }
 
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+
+                    val savedUri = output.savedUri
                     val msg = "Foto capturada y guardada: ${output.savedUri}"
-                    Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
+                    //Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
                     Log.d(LOG_TAG, msg)
+                    val imageBytes = savedUri?.let { uri ->
+                        requireContext().contentResolver.openInputStream(uri)?.use { inputStream ->
+                            inputStream.readBytes()
+                        }
+                    }
+                    if (imageBytes != null) {
+                        // Step 2: Send image to server via POST request
+                        val postUrl = "http://localhost:3000/image"
+                        val response = uploadImage(postUrl, imageBytes)
+                        Log.i("subirFoto","paso "+response)
+                    } else {
+                         Log.i("b","Failed to download image.")
+                    }
                 }
             }
         )
+
+
+
     }
 
     private fun startCamera() {
@@ -174,5 +197,33 @@ class HomeFragment : Fragment() {
                 add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
             }
         }.toTypedArray()
+    }
+    private fun uploadImage(postUrl: String, imageBytes: ByteArray): String {
+        return try {
+            val url = URL(postUrl)
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "POST"
+            connection.doOutput = true
+            connection.setRequestProperty("Content-Type", "application/octet-stream")
+
+            // Write image bytes to output stream
+            val outputStream = DataOutputStream(connection.outputStream)
+            outputStream.write(imageBytes)
+            outputStream.flush()
+            outputStream.close()
+
+            // Read server response
+            val reader = BufferedReader(InputStreamReader(connection.inputStream))
+            val response = StringBuilder()
+            var line: String?
+            while (reader.readLine().also { line = it } != null) {
+                response.append(line)
+            }
+            reader.close()
+            response.toString()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            "Error: ${e.message}"
+        }
     }
 }
