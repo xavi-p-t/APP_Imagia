@@ -123,7 +123,7 @@ class HomeFragment : Fragment() {
                     }
                     if (imageBytes != null) {
                         // Step 2: Send image to server via POST request
-                        val postUrl = "http://10.0.2.2:3000/image"
+                        val postUrl = "https://10.0.2.2:3000/image"
                         val response = uploadImage(postUrl, imageBytes)
                         Log.i("subirFoto","paso "+ response)
                     } else {
@@ -202,32 +202,25 @@ class HomeFragment : Fragment() {
     private fun uploadImage(postUrl: String, imageBytes: ByteArray): String {
         return try {
             val url = URL(postUrl)
-            val boundary = "Boundary-" + System.currentTimeMillis()
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.doOutput = true
-            connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
+            connection.setRequestProperty("Content-Type", "application/octet-stream")
 
             val outputStream = DataOutputStream(connection.outputStream)
-            outputStream.writeBytes("--$boundary\r\n")
-            outputStream.writeBytes("Content-Disposition: form-data; name=\"image\"; filename=\"image.jpg\"\r\n")
-            outputStream.writeBytes("Content-Type: image/jpeg\r\n\r\n")
             outputStream.write(imageBytes)
-            outputStream.writeBytes("\r\n--$boundary--\r\n")
-
-            Log.i(LOG_TAG, outputStream.toString())
-
             outputStream.flush()
             outputStream.close()
 
-            // Leer respuesta del servidor
-            val reader = BufferedReader(InputStreamReader(connection.inputStream))
+            val responseCode = connection.responseCode
+            val inputStream = if (responseCode in 200..299) {
+                connection.inputStream
+            } else {
+                connection.errorStream
+            }
 
-            Log.i(LOG_TAG, reader.toString())
-
+            val reader = BufferedReader(InputStreamReader(inputStream))
             val response = StringBuilder()
-
-
             var line: String?
             while (reader.readLine().also { line = it } != null) {
                 response.append(line)
@@ -238,6 +231,7 @@ class HomeFragment : Fragment() {
             e.printStackTrace()
             "Error: ${e.message}"
         }
+
     }
 
 }
