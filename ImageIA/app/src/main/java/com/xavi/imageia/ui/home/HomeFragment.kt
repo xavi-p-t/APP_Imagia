@@ -3,6 +3,8 @@ package com.xavi.imageia.ui.home
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.StrictMode
+import android.os.StrictMode.ThreadPolicy
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
@@ -59,6 +61,10 @@ class HomeFragment : Fragment() {
 
         _binding = FragmentHomeBinding.inflate(inflater, container, false)
 
+        // Permitir operaciones de red en el hilo principal (solo para pruebas)
+        val policy = ThreadPolicy.Builder().permitAll().build()
+        StrictMode.setThreadPolicy(policy)
+
         if (allPermissionsGranted()) {
             startCamera()
         } else {
@@ -114,7 +120,6 @@ class HomeFragment : Fragment() {
 
                     val savedUri = output.savedUri
                     val msg = "Foto capturada y guardada: ${output.savedUri}"
-                    //Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
                     Log.d(LOG_TAG, msg)
                     val imageBytes = savedUri?.let { uri ->
                         requireContext().contentResolver.openInputStream(uri)?.use { inputStream ->
@@ -122,19 +127,16 @@ class HomeFragment : Fragment() {
                         }
                     }
                     if (imageBytes != null) {
-                        // Step 2: Send image to server via POST request
-                        val postUrl = "https://10.0.2.2:3000/image"
+                        // Subir la imagen al servidor
+                        val postUrl = "http://10.0.2.2:3000/image" // Cambia la URL a la correcta
                         val response = uploadImage(postUrl, imageBytes)
-                        Log.i("subirFoto","paso "+ response)
+                        Log.i("subirFoto", "Respuesta: $response")
                     } else {
-                         Log.i("b","Failed to download image.")
+                        Log.i("b", "Failed to download image.")
                     }
                 }
             }
         )
-
-
-
     }
 
     private fun startCamera() {
@@ -199,39 +201,53 @@ class HomeFragment : Fragment() {
             }
         }.toTypedArray()
     }
+
     private fun uploadImage(postUrl: String, imageBytes: ByteArray): String {
         return try {
+            val boundary = "Boundary-${System.currentTimeMillis()}"
             val url = URL(postUrl)
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.doOutput = true
-            connection.setRequestProperty("Content-Type", "application/octet-stream")
+            connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
 
+            // Escribir datos al cuerpo de la solicitud
             val outputStream = DataOutputStream(connection.outputStream)
+            val lineEnd = "\r\n"
+            val twoHyphens = "--"
+
+            // Parte de inicio del formulario
+            outputStream.writeBytes(twoHyphens + boundary + lineEnd)
+            outputStream.writeBytes("Content-Disposition: form-data; name=\"image\"; filename=\"image.png\"$lineEnd")
+            outputStream.writeBytes("Content-Type: image/png$lineEnd")
+            outputStream.writeBytes(lineEnd)
+
+            // Escribir los bytes de la imagen
             outputStream.write(imageBytes)
+            outputStream.writeBytes(lineEnd)
+
+            // Final del formulario
+            outputStream.writeBytes(twoHyphens + boundary + twoHyphens + lineEnd)
             outputStream.flush()
             outputStream.close()
 
+            // Verificar código de respuesta
             val responseCode = connection.responseCode
-            val inputStream = if (responseCode in 200..299) {
-                connection.inputStream
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                val reader = BufferedReader(InputStreamReader(connection.inputStream))
+                val response = StringBuilder()
+                var line: String?
+                while (reader.readLine().also { line = it } != null) {
+                    response.append(line)
+                }
+                reader.close()
+                response.toString()
             } else {
-                connection.errorStream
+                "Error del servidor: $responseCode ${connection.responseMessage}"
             }
-
-            val reader = BufferedReader(InputStreamReader(inputStream))
-            val response = StringBuilder()
-            var line: String?
-            while (reader.readLine().also { line = it } != null) {
-                response.append(line)
-            }
-            reader.close()
-            response.toString()
         } catch (e: Exception) {
             e.printStackTrace()
-            "Error: ${e.message}"
+            "Error: ${e.message ?: "Unknown error"}"
         }
-
     }
-
 }
