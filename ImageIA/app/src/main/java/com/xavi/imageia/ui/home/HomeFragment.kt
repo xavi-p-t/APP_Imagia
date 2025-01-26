@@ -128,7 +128,7 @@ class HomeFragment : Fragment() {
                     }
                     if (imageBytes != null) {
                         // Subir la imagen al servidor
-                        val postUrl = "http://10.0.2.2:3000/image" // Cambia la URL a la correcta
+                        val postUrl = "http://10.0.2.2:3000/api/images/image"
                         val response = uploadImage(postUrl, imageBytes)
                         Log.i("subirFoto", "Respuesta: $response")
                     } else {
@@ -202,7 +202,10 @@ class HomeFragment : Fragment() {
         }.toTypedArray()
     }
 
+//    multipart/form-data; boundary=<calculated when request is sent>
+    
     private fun uploadImage(postUrl: String, imageBytes: ByteArray): String {
+        Log.d("uploadImage", "Iniciando subida de imagen a $postUrl")
         return try {
             val boundary = "Boundary-${System.currentTimeMillis()}"
             val url = URL(postUrl)
@@ -211,7 +214,6 @@ class HomeFragment : Fragment() {
             connection.doOutput = true
             connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
 
-            // Escribir datos al cuerpo de la solicitud
             val outputStream = DataOutputStream(connection.outputStream)
             val lineEnd = "\r\n"
             val twoHyphens = "--"
@@ -222,17 +224,14 @@ class HomeFragment : Fragment() {
             outputStream.writeBytes("Content-Type: image/png$lineEnd")
             outputStream.writeBytes(lineEnd)
 
-            // Escribir los bytes de la imagen
             outputStream.write(imageBytes)
             outputStream.writeBytes(lineEnd)
-
-            // Final del formulario
             outputStream.writeBytes(twoHyphens + boundary + twoHyphens + lineEnd)
             outputStream.flush()
             outputStream.close()
 
-            // Verificar código de respuesta
             val responseCode = connection.responseCode
+            Log.d("uploadImage", "Código de respuesta: $responseCode")
             if (responseCode == HttpURLConnection.HTTP_OK) {
                 val reader = BufferedReader(InputStreamReader(connection.inputStream))
                 val response = StringBuilder()
@@ -241,12 +240,14 @@ class HomeFragment : Fragment() {
                     response.append(line)
                 }
                 reader.close()
+                Log.d("uploadImage", "Respuesta del servidor: $response")
                 response.toString()
             } else {
+                Log.e("uploadImage", "Error del servidor: $responseCode ${connection.responseMessage}")
                 "Error del servidor: $responseCode ${connection.responseMessage}"
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("uploadImage", "Error: ${e.message}", e)
             "Error: ${e.message ?: "Unknown error"}"
         }
     }
