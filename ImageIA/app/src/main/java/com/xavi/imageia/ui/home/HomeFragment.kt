@@ -21,8 +21,21 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import android.Manifest
 import android.content.ContentValues
+import android.content.Context
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.provider.MediaStore
+import android.speech.tts.TextToSpeech
+import android.speech.tts.TextToSpeech.OnInitListener
+import androidx.core.content.ContextCompat.getSystemService
 import com.xavi.imageia.databinding.FragmentHomeBinding
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.DataOutputStream
 import java.io.InputStreamReader
@@ -32,12 +45,19 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-
-class HomeFragment : Fragment() {
-
+//ullada
+class HomeFragment : Fragment(), OnInitListener,SensorEventListener {
+    private lateinit var sensorManager: SensorManager
+    private var accelerometre: Sensor? = null
+    private lateinit var textToSpeech: TextToSpeech
     private var _binding: FragmentHomeBinding? = null
     private val binding get() = _binding!!
     var LOG_TAG = "PRUEBAS"
+    private var lastTime: Long = 0
+    private val tiempoEspera = 5000
+    private var contGolpes = 0
+    private var isUploading = false
+    //private var procesando = false
 
     private var imageCapture: ImageCapture? = null
     private lateinit var cameraExecutor: ExecutorService
@@ -58,8 +78,17 @@ class HomeFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View {
         val homeViewModel = ViewModelProvider(this)[HomeViewModel::class.java]
-
+        textToSpeech = TextToSpeech(requireContext(), this)
         _binding = FragmentHomeBinding.inflate(inflater, container, false)
+
+        sensorManager = requireContext().getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        accelerometre = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION)
+
+        if (accelerometre != null) {
+            sensorManager.registerListener(this, accelerometre, SensorManager.SENSOR_DELAY_NORMAL)
+        } else {
+            Log.i("Sensor", "El sensor de aceleración lineal no está disponible en este dispositivo.")
+        }
 
         // Permitir operaciones de red en el hilo principal (solo para pruebas)
         val policy = ThreadPolicy.Builder().permitAll().build()
@@ -84,12 +113,19 @@ class HomeFragment : Fragment() {
     }
 
     private fun takePhoto() {
-        val imageCapture = imageCapture ?: run {
-            Log.e(LOG_TAG, "imageCapture no está inicializado")
+        if (isUploading) {
+            Log.i(LOG_TAG, "Espera a que termine la subida.")
             return
         }
 
-        // Crear nombre con marca de tiempo
+        isUploading = true // Bloquear la toma de fotos
+
+        val imageCapture = imageCapture ?: run {
+            Log.e(LOG_TAG, "imageCapture no está inicializado")
+            isUploading = false // En caso de error, desbloquear
+            return
+        }
+
         val name = SimpleDateFormat(FILENAME_FORMAT, Locale.US)
             .format(System.currentTimeMillis())
         val contentValues = ContentValues().apply {
@@ -114,25 +150,43 @@ class HomeFragment : Fragment() {
             object : ImageCapture.OnImageSavedCallback {
                 override fun onError(exc: ImageCaptureException) {
                     Log.e(LOG_TAG, "Error al capturar la foto: ${exc.message}", exc)
+                    isUploading = false // Desbloquear en caso de error
                 }
 
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-
                     val savedUri = output.savedUri
                     val msg = "Foto capturada y guardada: ${output.savedUri}"
                     Log.d(LOG_TAG, msg)
+
                     val imageBytes = savedUri?.let { uri ->
                         requireContext().contentResolver.openInputStream(uri)?.use { inputStream ->
                             inputStream.readBytes()
                         }
                     }
+
                     if (imageBytes != null) {
-                        // Subir la imagen al servidor
-                        val postUrl = "http://10.0.2.2:3000/api/images/image"
-                        val response = uploadImage(postUrl, imageBytes)
-                        Log.i("subirFoto", "Respuesta: $response")
+                        val postUrl = "https://imagia1.ieti.site/api/analitzar-imatge"
+
+                        // Subir la imagen de manera asíncrona
+                        CoroutineScope(Dispatchers.IO).launch {
+                            try {
+                                val response = uploadImage(postUrl, imageBytes)
+                                val jObject = JSONObject(response)
+                                val serverResponse = jObject.getString("response")
+
+                                withContext(Dispatchers.Main) {
+                                    speakText(serverResponse)
+                                    Log.i("subirFoto", "Respuesta: $response")
+                                    isUploading = false // Desbloquear cuando reciba la respuesta
+                                }
+                            } catch (e: Exception) {
+                                Log.e("subirFoto", "Error subiendo la imagen", e)
+                                isUploading = false // Desbloquear en caso de error
+                            }
+                        }
                     } else {
-                        Log.i("b", "Failed to download image.")
+                        Log.e(LOG_TAG, "No se pudo leer la imagen.")
+                        isUploading = false // Desbloquear en caso de error
                     }
                 }
             }
@@ -167,6 +221,24 @@ class HomeFragment : Fragment() {
 
         }, ContextCompat.getMainExecutor(requireContext()))
     }
+    private fun speakText(text: String) {
+        // Hacer que el TextToSpeech lea el texto ingresado
+        textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, null)
+    }
+    override fun onInit(status: Int) {
+        if (status == TextToSpeech.SUCCESS) {
+            // Establecer el idioma como español de España
+            val loc = Locale("en","US")
+            val langResult = textToSpeech.setLanguage(loc)
+
+            // Verificar si el idioma está disponible
+            if (langResult == TextToSpeech.LANG_MISSING_DATA || langResult == TextToSpeech.LANG_NOT_SUPPORTED) {
+                Toast.makeText(context, "Idioma no soportado o no disponible", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(context, "Error al inicializar Text-to-Speech", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
         ContextCompat.checkSelfPermission(
@@ -184,6 +256,10 @@ class HomeFragment : Fragment() {
     }
 
     override fun onDestroy() {
+        if (this::textToSpeech.isInitialized) {
+            textToSpeech.stop()
+            textToSpeech.shutdown()
+        }
         super.onDestroy()
         cameraExecutor.shutdown()
     }
@@ -240,8 +316,10 @@ class HomeFragment : Fragment() {
                     response.append(line)
                 }
                 reader.close()
+
                 Log.d("uploadImage", "Respuesta del servidor: $response")
                 response.toString()
+
             } else {
                 Log.e("uploadImage", "Error del servidor: $responseCode ${connection.responseMessage}")
                 "Error del servidor: $responseCode ${connection.responseMessage}"
@@ -250,5 +328,34 @@ class HomeFragment : Fragment() {
             Log.e("uploadImage", "Error: ${e.message}", e)
             "Error: ${e.message ?: "Unknown error"}"
         }
+    }
+
+    override fun onSensorChanged(event: SensorEvent?) {
+        val zAxy = event?.values?.get(2)
+        if (zAxy != null) {
+            if(zAxy >= 5 && zAxy < 10){
+                val tiempo = System.currentTimeMillis()
+                contGolpes += 1
+                if ((tiempo - lastTime) < tiempoEspera && contGolpes == 2){
+                    Log.i("Sensor", "entro a sacar foto")
+                    takePhoto()
+                    contGolpes = 0
+                    lastTime = 0
+                }else{
+                    Log.i("Sensor", "entro al else de sacar foto")
+                    lastTime = tiempo
+                }
+                Log.i("Sensor", zAxy.toString())
+            }
+        }
+    }
+
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
+        //
+    }
+    override fun onPause(){
+        super.onPause()
+        sensorManager.unregisterListener(this)
+
     }
 }
