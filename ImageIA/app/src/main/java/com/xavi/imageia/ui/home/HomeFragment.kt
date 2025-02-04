@@ -126,7 +126,7 @@ class HomeFragment : Fragment(), OnInitListener,SensorEventListener {
             return
         }
 
-        val name = SimpleDateFormat(FILENAME_FORMAT, Locale.US)
+        val name = SimpleDateFormat(FILENAME_FORMAT, Locale("es", "ES"))
             .format(System.currentTimeMillis())
         val contentValues = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, name)
@@ -228,7 +228,7 @@ class HomeFragment : Fragment(), OnInitListener,SensorEventListener {
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
             // Establecer el idioma como español de España
-            val loc = Locale("en","US")
+            val loc = Locale("es","ES")
             val langResult = textToSpeech.setLanguage(loc)
 
             // Verificar si el idioma está disponible
@@ -333,16 +333,17 @@ class HomeFragment : Fragment(), OnInitListener,SensorEventListener {
     override fun onSensorChanged(event: SensorEvent?) {
         val zAxy = event?.values?.get(2)
         if (zAxy != null) {
-            if(zAxy >= 5 && zAxy < 10){
+//            Log.i("SensorJuan", zAxy.toString())
+            if(zAxy >= 2 && zAxy < 10){
                 val tiempo = System.currentTimeMillis()
                 contGolpes += 1
                 if ((tiempo - lastTime) < tiempoEspera && contGolpes == 2){
-                    Log.i("Sensor", "entro a sacar foto")
+                    Log.i("SensorJuan", "entro a sacar foto: " + contGolpes.toString())
                     takePhoto()
                     contGolpes = 0
                     lastTime = 0
                 }else{
-                    Log.i("Sensor", "entro al else de sacar foto")
+                    Log.i("SensorJuan", "entro al else de sacar foto")
                     lastTime = tiempo
                 }
                 Log.i("Sensor", zAxy.toString())
