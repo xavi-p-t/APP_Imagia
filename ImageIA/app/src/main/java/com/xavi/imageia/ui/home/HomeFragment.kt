@@ -344,6 +344,9 @@ class HomeFragment : Fragment(), OnInitListener,SensorEventListener {
                     lastTime = 0
                 }else{
                     Log.i("SensorJuan", "entro al else de sacar foto")
+                    if (contGolpes > 2){
+                        contGolpes = 0;
+                    }
                     lastTime = tiempo
                 }
                 Log.i("Sensor", zAxy.toString())
