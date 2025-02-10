@@ -81,6 +81,18 @@ class HomeFragment : Fragment(), OnInitListener,SensorEventListener {
         textToSpeech = TextToSpeech(requireContext(), this)
         _binding = FragmentHomeBinding.inflate(inflater, container, false)
 
+
+
+        // Permitir operaciones de red en el hilo principal (solo para pruebas)
+        val policy = ThreadPolicy.Builder().permitAll().build()
+        StrictMode.setThreadPolicy(policy)
+
+
+//        if (allPermissionsGranted()) {
+//            startCamera()
+//        } else {
+//            requestPermissions()
+//        }
         sensorManager = requireContext().getSystemService(Context.SENSOR_SERVICE) as SensorManager
         accelerometre = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION)
 
@@ -89,17 +101,6 @@ class HomeFragment : Fragment(), OnInitListener,SensorEventListener {
         } else {
             Log.i("Sensor", "El sensor de aceleración lineal no está disponible en este dispositivo.")
         }
-
-        // Permitir operaciones de red en el hilo principal (solo para pruebas)
-        val policy = ThreadPolicy.Builder().permitAll().build()
-        StrictMode.setThreadPolicy(policy)
-
-        if (allPermissionsGranted()) {
-            startCamera()
-        } else {
-            requestPermissions()
-        }
-
         // Configurar el botón button4
         binding.button4.setOnClickListener {
             takePhoto()
@@ -334,7 +335,7 @@ class HomeFragment : Fragment(), OnInitListener,SensorEventListener {
         val zAxy = event?.values?.get(2)
         if (zAxy != null) {
 //            Log.i("SensorJuan", zAxy.toString())
-            if(zAxy >= 2 && zAxy < 10){
+            if(zAxy >= 5 && zAxy < 10){
                 val tiempo = System.currentTimeMillis()
                 contGolpes += 1
                 if ((tiempo - lastTime) < tiempoEspera && contGolpes == 2){
@@ -362,4 +363,12 @@ class HomeFragment : Fragment(), OnInitListener,SensorEventListener {
         sensorManager.unregisterListener(this)
 
     }
+    override fun onResume() {
+        super.onResume()
+        val sharedPref = requireActivity().getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
+        if (sharedPref.getBoolean("permissions_granted", false)) {
+            startCamera()
+        }
+    }
+
 }

@@ -16,6 +16,11 @@
             android:id="@+id/action_Ullada_to_Historial"
             app:destination="@id/Historial" />
     </fragment>
+    <fragment
+        android:id="@+id/verificacion"
+        android:name="com.xavi.imageia.ui.verificacion"
+        android:label="Verificación"
+        tools:layout="@layout/fragment_verificacion" />
 
     <fragment
         android:id="@+id/Historial"
@@ -39,5 +44,8 @@
         <action
             android:id="@+id/action_Compte_to_Ullada"
             app:destination="@id/Ullada" />
+        <action
+            android:id="@+id/action_Compte_to_verificacion"
+            app:destination="@id/verificacion" />
     </fragment>
 </navigation>

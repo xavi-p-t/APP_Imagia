@@ -10,7 +10,9 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.Toast
 import androidx.fragment.app.Fragment
+import androidx.navigation.fragment.findNavController
 import com.google.gson.Gson
+import com.xavi.imageia.R
 import com.xavi.imageia.databinding.FragmentNotificationsBinding
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -45,12 +47,20 @@ class NotificationsFragment : Fragment() {
             val phone = editTextPhone.text.toString()
             val mail = editTextMail.text.toString()
             val password = editTextPassword.text.toString()
+            if (user.isEmpty() || phone.isEmpty() || mail.isEmpty() || password.isEmpty()){
+                Toast.makeText(requireContext(), "no dejes ningun campo vacio", Toast.LENGTH_SHORT).show()
+            }
+            else{
+                // Guardar los datos en SharedPreferences
+                saveUserData(user, phone, mail, password)
 
-            // Guardar los datos en SharedPreferences
-            saveUserData(user, phone, mail, password)
+                // Registrar el usuario en el servidor
+                registerUser(phone, user, mail, password)
 
-            // Registrar el usuario en el servidor
-            registerUser(phone, user, mail, password)
+                findNavController().navigate(R.id.verificacion)
+
+            }
+
         }
 
         return root
@@ -78,6 +88,7 @@ class NotificationsFragment : Fragment() {
             putString("phone", phone)
             putString("mail", mail)
             putString("password", password)
+            putBoolean("verified",false)
             apply()
         }
     }
