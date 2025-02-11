@@ -120,14 +120,14 @@ class NotificationsFragment : Fragment() {
 
                 withContext(Dispatchers.Main) {
                     if (responseCode == HttpURLConnection.HTTP_OK) {
-                        Toast.makeText(requireContext(), "Registro exitoso", Toast.LENGTH_SHORT).show()
+//                        Toast.makeText(requireContext(), "Registro exitoso", Toast.LENGTH_SHORT).show()
                     } else {
                         Toast.makeText(requireContext(), "Error: $responseMessage", Toast.LENGTH_SHORT).show()
                     }
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(requireContext(), "Error de conexión", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(requireContext(), "Error al registrar", Toast.LENGTH_SHORT).show()
                 }
                 Log.e("registerUser", "Error: ${e.message}", e)
             }

@@ -77,9 +77,9 @@ class verificacion : Fragment() {
         val sharedPref = requireContext().getSharedPreferences("UserData", Context.MODE_PRIVATE)
         val phone = sharedPref.getString("phone", "") ?: ""
         val postUrl = "https://imagia1.ieti.site/api/usuaris/validar"
+//        put("telefon", phone)
         val requestBody = JSONObject().apply {
-            put("telefon", phone)
-            put("codigo", codigo)
+            put("codi", codigo)
         }
 
         return withContext(Dispatchers.IO) {
@@ -101,6 +101,7 @@ class verificacion : Fragment() {
                 withContext(Dispatchers.Main) {
                     if (responseCode == HttpURLConnection.HTTP_OK) {
                         Toast.makeText(requireContext(), "Verificado", Toast.LENGTH_SHORT).show()
+                        Log.d("validar",responseCode.toString() +  responseMessage)
                     } else {
                         Toast.makeText(requireContext(), "Error: $responseMessage", Toast.LENGTH_SHORT).show()
                     }
